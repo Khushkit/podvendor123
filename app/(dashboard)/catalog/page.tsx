@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCatalog } from '@/lib/api';
+import { getCatalog, getFileUrl } from '@/lib/api';
 import type { PODCatalogItem } from '@/types';
 
 export default function CatalogPage() {
@@ -34,7 +34,7 @@ export default function CatalogPage() {
           {items.map(item => (
             <div key={item.id} className="bg-white border border-gray-100 rounded-xl overflow-hidden">
               {item.imageUrl ? (
-                <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover" />
+                <img src={getFileUrl(item.imageUrl || '')} alt={item.title} className="w-full h-36 object-cover" />
               ) : (
                 <div className="w-full h-36 bg-gray-50 flex items-center justify-center text-gray-300 text-xs">
                   No image
