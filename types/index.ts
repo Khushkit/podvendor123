@@ -26,10 +26,27 @@ export type PODJob = {
   rejectReason?: string;
   createdAt: string;
   orderItem: {
+    id: string;
     orderId: string;
     quantity: number;
     price: number;
-    product: { title: string };
+    product: {
+      title: string;
+      description?: string;
+      type: string;
+      images?: { url: string; isPrimary: boolean }[];
+    };
+    variant?: {
+      options: Record<string, string>;
+      sku: string;
+    };
+  };
+  // Shipping info (filled when vendor ships)
+  shipment?: {
+    carrier: string;
+    tracking: string;
+    trackingUrl?: string;
+    shippedAt?: string;
   };
 };
 
@@ -37,10 +54,14 @@ export type PODCatalogItem = {
   id: string;
   title: string;
   description?: string;
+  brand?: string;
+  category?: string;
   baseCost: number;
   imageUrl?: string;
   isActive: boolean;
   createdAt: string;
+  techniques?: string[];
+  printAreas?: { position: string; label: string }[];
 };
 
 export type PaginatedResult<T> = {
