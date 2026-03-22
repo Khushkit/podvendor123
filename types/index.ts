@@ -18,6 +18,17 @@ export type AuthPayload = {
 
 export type PODJobStatus = 'PENDING' | 'PRINTING' | 'SHIPPED' | 'REJECTED';
 
+export type ShippingAddress = {
+  name: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
+};
+
 export type PODJob = {
   id: string;
   status: PODJobStatus;
@@ -39,6 +50,18 @@ export type PODJob = {
     variant?: {
       options: Record<string, string>;
       sku: string;
+    };
+    order?: {
+      id: string;
+      totalAmount: number;
+      currency: string;
+      createdAt: string;
+      customer?: {
+        id: string;
+        phone?: string;
+        user: { firstName?: string; lastName?: string; email: string };
+        addresses?: ShippingAddress[];
+      };
     };
   };
   // Shipping info (filled when vendor ships)

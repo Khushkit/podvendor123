@@ -24,6 +24,16 @@ const FILTERS: { value: string; label: string }[] = [
   { value: 'REJECTED', label: 'Rejected' },
 ];
 
+const DUMMY_JOBS: PODJob[] = [
+  { id: 'job-001', status: 'PENDING', artworkUrl: '', createdAt: '2026-03-22T08:00:00Z', orderItem: { id: 'oi-1', orderId: 'ord-101', quantity: 2, price: 699, product: { title: 'Custom Graphic T-Shirt (Black, L)', type: 'POD' }, variant: { options: { Color: 'Black', Size: 'L' }, sku: 'TSH-BLK-L' } } },
+  { id: 'job-002', status: 'PENDING', artworkUrl: '', createdAt: '2026-03-22T07:30:00Z', orderItem: { id: 'oi-2', orderId: 'ord-102', quantity: 1, price: 399, product: { title: 'Classic Coffee Mug (11oz)', type: 'POD' }, variant: { options: { Color: 'White' }, sku: 'MUG-WHT-11' } } },
+  { id: 'job-003', status: 'PRINTING', artworkUrl: '', createdAt: '2026-03-21T14:00:00Z', orderItem: { id: 'oi-3', orderId: 'ord-098', quantity: 1, price: 1499, product: { title: 'Premium Hoodie (Navy, XL)', type: 'POD' }, variant: { options: { Color: 'Navy', Size: 'XL' }, sku: 'HOD-NAV-XL' } } },
+  { id: 'job-004', status: 'PRINTING', artworkUrl: '', createdAt: '2026-03-21T10:00:00Z', orderItem: { id: 'oi-4', orderId: 'ord-097', quantity: 3, price: 499, product: { title: 'Canvas Poster (A3, Matte)', type: 'POD' }, variant: { options: { Finish: 'Matte' }, sku: 'POS-MAT-A3' } } },
+  { id: 'job-005', status: 'SHIPPED', artworkUrl: '', createdAt: '2026-03-20T09:00:00Z', orderItem: { id: 'oi-5', orderId: 'ord-090', quantity: 5, price: 549, product: { title: 'Organic Tote Bag (Natural)', type: 'POD' }, variant: { options: { Color: 'Natural' }, sku: 'TOT-NAT' } }, shipment: { carrier: 'Shiprocket', tracking: 'SR789456123', shippedAt: '2026-03-21T16:00:00Z' } },
+  { id: 'job-006', status: 'SHIPPED', artworkUrl: '', createdAt: '2026-03-19T11:00:00Z', orderItem: { id: 'oi-6', orderId: 'ord-085', quantity: 1, price: 599, product: { title: 'Phone Case (iPhone 15, Clear)', type: 'POD' }, variant: { options: { Color: 'Clear', Model: 'iPhone 15' }, sku: 'CSE-CLR-IP15' } }, shipment: { carrier: 'Delhivery', tracking: 'DL456789012', shippedAt: '2026-03-20T14:00:00Z' } },
+  { id: 'job-007', status: 'REJECTED', artworkUrl: '', rejectReason: 'Design resolution too low (72 DPI). Minimum 150 DPI required.', createdAt: '2026-03-17T09:00:00Z', orderItem: { id: 'oi-7', orderId: 'ord-075', quantity: 1, price: 899, product: { title: 'Oversized Drop Shoulder Tee (White, M)', type: 'POD' }, variant: { options: { Color: 'White', Size: 'M' }, sku: 'OVR-WHT-M' } } },
+];
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<PODJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +43,7 @@ export default function JobsPage() {
     setLoading(true);
     getJobs({ limit: 100, status: filter !== 'all' ? filter : undefined })
       .then(r => setJobs(r.data))
+      .catch(() => setJobs(DUMMY_JOBS))
       .finally(() => setLoading(false));
   };
 

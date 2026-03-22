@@ -8,7 +8,7 @@ import type { PODJob, PODJobStatus } from '@/types';
 import {
   ArrowLeft, Download, Printer, Truck, Package, Clock, XCircle,
   CheckCircle, AlertTriangle, ExternalLink, Image, FileDown,
-  Copy, Eye, ZoomIn, Loader2, Send,
+  Copy, Eye, ZoomIn, Loader2, Send, MapPin, Phone, Mail,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -281,6 +281,40 @@ export default function JobDetailPage() {
                 <p className="font-medium text-gray-900 mt-0.5">₹{job.orderItem?.price ?? '—'}</p>
               </div>
             </div>
+          </div>
+
+          {/* Shipping Address */}
+          <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><MapPin className="h-4 w-4 text-gray-400" /> Shipping Address</h2>
+            {job.orderItem?.order?.customer?.addresses?.[0] ? (
+              <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm">
+                <p className="font-semibold text-gray-900">{job.orderItem.order.customer.addresses[0].name}</p>
+                <p className="text-gray-600">{job.orderItem.order.customer.addresses[0].line1}</p>
+                {job.orderItem.order.customer.addresses[0].line2 && <p className="text-gray-600">{job.orderItem.order.customer.addresses[0].line2}</p>}
+                <p className="text-gray-600">{job.orderItem.order.customer.addresses[0].city}, {job.orderItem.order.customer.addresses[0].state} — {job.orderItem.order.customer.addresses[0].pincode}</p>
+                <p className="text-gray-600">{job.orderItem.order.customer.addresses[0].country}</p>
+                <div className="pt-2 mt-2 border-t border-gray-200 space-y-1">
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5"><Phone className="h-3 w-3" /> {job.orderItem.order.customer.addresses[0].phone}</p>
+                  {job.orderItem.order.customer.user?.email && (
+                    <p className="text-xs text-gray-500 flex items-center gap-1.5"><Mail className="h-3 w-3" /> {job.orderItem.order.customer.user.email}</p>
+                  )}
+                </div>
+              </div>
+            ) : job.orderItem?.order?.customer ? (
+              <div className="bg-gray-50 rounded-lg p-4 text-sm">
+                <p className="font-medium text-gray-900">
+                  {job.orderItem.order.customer.user?.firstName} {job.orderItem.order.customer.user?.lastName}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">{job.orderItem.order.customer.user?.email}</p>
+                {job.orderItem.order.customer.phone && <p className="text-xs text-gray-500">{job.orderItem.order.customer.phone}</p>}
+                <p className="text-xs text-amber-600 mt-2">⚠ No default address set. Contact customer for shipping details.</p>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-4 text-center">
+                <MapPin className="h-6 w-6 text-gray-300 mx-auto mb-1" />
+                <p className="text-xs text-gray-400">Address will be available once order data is loaded</p>
+              </div>
+            )}
           </div>
         </div>
 
