@@ -57,7 +57,8 @@ export function getJobs(params: { page?: number; limit?: number; status?: string
 }
 
 export function getJob(jobId: string) {
-  return request<PODJob>(`/pod/jobs/${jobId}`);
+  // Uses vendor-portal route — resolves by vendorId from JWT, not tenantId
+  return request<PODJob>(`/pod/vendor-portal/jobs/${jobId}`);
 }
 
 export function updateJobStatus(jobId: string, status: string, rejectReason?: string) {
@@ -90,12 +91,20 @@ export function getCatalog(params: { page?: number; limit?: number } = {}) {
 export function getFileUrl(path: string): string {
   if (!path) return '';
   if (path.startsWith('http')) return path;
-  return STORAGE_URL ? `${STORAGE_URL}/${path}` : path;
+  // Fallback to R2 public URL pattern
+  const storageBase = STORAGE_URL || 'https://pub-ramio.r2.dev';
+  return `${storageBase}/${path}`;
 }
 
-/** Trigger download of a file */
+/** Trigger download of a file (with auth for protected endpoints) */
 export async function downloadFile(url: string, filename: string) {
-  const response = await fetch(url);
+  const token = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) throw new Error('Download failed');
+
   const blob = await response.blob();
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
