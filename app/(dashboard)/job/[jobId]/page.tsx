@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getJob, updateJobStatus, updateJobTracking, getFileUrl, downloadFile } from '@/lib/api';
+import { getJob, updateJobStatus, shipJob, getFileUrl, downloadFile } from '@/lib/api';
 import type { PODJob, PODJobStatus } from '@/types';
 import {
   ArrowLeft, Download, Printer, Truck, Package, Clock, XCircle,
@@ -40,7 +40,13 @@ export default function JobDetailPage() {
   // Shipping form
   const [showShipForm, setShowShipForm] = useState(false);
   const [carrier, setCarrier] = useState('');
-  const [tracking, setTracking] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [trackingUrl, setTrackingUrl] = useState('');
+  const [useShiprocket, setUseShiprocket] = useState(false);
+  const [pkgWeight, setPkgWeight] = useState('');
+  const [pkgLength, setPkgLength] = useState('');
+  const [pkgBreadth, setPkgBreadth] = useState('');
+  const [pkgHeight, setPkgHeight] = useState('');
 
   // Reject form
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -71,10 +77,22 @@ export default function JobDetailPage() {
   };
 
   const handleShip = async () => {
-    if (!job || !carrier.trim() || !tracking.trim()) return;
+    if (!job) return;
+    if (!useShiprocket && !trackingNumber.trim()) return;
     setUpdating(true);
     try {
-      const updated = await updateJobTracking(job.id, carrier, tracking);
+      const result = await shipJob(job.id, {
+        ...(carrier.trim() && { carrier }),
+        ...(trackingNumber.trim() && { trackingNumber }),
+        ...(trackingUrl.trim() && { trackingUrl }),
+        useShiprocket,
+        ...(pkgWeight && { weight: parseFloat(pkgWeight) }),
+        ...(pkgLength && { length: parseFloat(pkgLength) }),
+        ...(pkgBreadth && { breadth: parseFloat(pkgBreadth) }),
+        ...(pkgHeight && { height: parseFloat(pkgHeight) }),
+      });
+      // Reload job to get updated status + shipment record
+      const updated = await getJob(job.id);
       setJob(updated);
       setShowShipForm(false);
     } catch (e: any) {
@@ -366,25 +384,72 @@ export default function JobDetailPage() {
           {showShipForm && (
             <div className="bg-white border border-gray-100 rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><Truck className="h-4 w-4 text-gray-400" /> Enter Shipping Details</h2>
+
+              {/* Shiprocket toggle */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={useShiprocket}
+                  onChange={e => setUseShiprocket(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 accent-gray-900"
+                />
+                <span className="text-xs font-medium text-gray-700">Use Shiprocket (auto-create shipment)</span>
+              </label>
+
+              {!useShiprocket && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">Carrier</label>
+                    <select value={carrier} onChange={e => setCarrier(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                      <option value="">Select carrier</option>
+                      <option value="Delhivery">Delhivery</option>
+                      <option value="BlueDart">BlueDart</option>
+                      <option value="DTDC">DTDC</option>
+                      <option value="Ecom Express">Ecom Express</option>
+                      <option value="India Post">India Post</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">Tracking Number *</label>
+                    <input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} placeholder="e.g., DL12345678901" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">Tracking URL <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input value={trackingUrl} onChange={e => setTrackingUrl(e.target.value)} placeholder="https://..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                </>
+              )}
+
+              {/* Package dimensions (optional, used by Shiprocket) */}
               <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Carrier *</label>
-                <select value={carrier} onChange={e => setCarrier(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
-                  <option value="">Select carrier</option>
-                  <option value="Shiprocket">Shiprocket</option>
-                  <option value="Delhivery">Delhivery</option>
-                  <option value="BlueDart">BlueDart</option>
-                  <option value="DTDC">DTDC</option>
-                  <option value="Ecom Express">Ecom Express</option>
-                  <option value="India Post">India Post</option>
-                  <option value="Other">Other</option>
-                </select>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">Package Dimensions <span className="text-gray-400 font-normal">(optional)</span></p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-0.5">Weight (kg)</label>
+                    <input type="number" min="0" step="0.1" value={pkgWeight} onChange={e => setPkgWeight(e.target.value)} placeholder="0.5" className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-0.5">Length (cm)</label>
+                    <input type="number" min="0" value={pkgLength} onChange={e => setPkgLength(e.target.value)} placeholder="20" className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-0.5">Breadth (cm)</label>
+                    <input type="number" min="0" value={pkgBreadth} onChange={e => setPkgBreadth(e.target.value)} placeholder="15" className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 block mb-0.5">Height (cm)</label>
+                    <input type="number" min="0" value={pkgHeight} onChange={e => setPkgHeight(e.target.value)} placeholder="5" className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 block mb-1">Tracking Number *</label>
-                <input value={tracking} onChange={e => setTracking(e.target.value)} placeholder="e.g., SR12345678" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={handleShip} disabled={!carrier || !tracking || updating} className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-1.5 transition">
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleShip}
+                  disabled={(!useShiprocket && !trackingNumber.trim()) || updating}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-1.5 transition"
+                >
                   {updating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   Confirm Shipment
                 </button>

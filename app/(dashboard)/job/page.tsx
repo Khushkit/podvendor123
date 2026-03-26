@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getJobs } from '@/lib/api';
 import type { PODJob, PODJobStatus } from '@/types';
 import {
   Clock, Printer, Truck, XCircle, Package,
-  ChevronRight, RefreshCw, Loader2, AlertCircle,
+  ChevronRight, ChevronLeft, RefreshCw, Loader2, AlertCircle,
 } from 'lucide-react';
 
 const STATUS_META: Record<PODJobStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
@@ -25,24 +25,42 @@ const FILTERS: { value: string; label: string }[] = [
   { value: 'REJECTED', label: 'Rejected' },
 ];
 
-export default function JobsPage() {
+const LIMIT = 20;
+
+function JobsPageContent() {
   const searchParams = useSearchParams();
   const initialStatus = searchParams?.get('status') || 'all';
   const [jobs, setJobs] = useState<PODJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState(initialStatus);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const fetchJobs = () => {
+  const fetchJobs = (p: number, f: string) => {
     setLoading(true);
     setError(null);
-    getJobs({ limit: 100, status: filter !== 'all' ? filter : undefined })
-      .then(r => setJobs(r.data || []))
+    getJobs({ page: p, limit: LIMIT, status: f !== 'all' ? f : undefined })
+      .then(r => {
+        setJobs(r.data || []);
+        setTotalPages(r.totalPages ?? 1);
+      })
       .catch((err) => setError(err.message || 'Failed to load jobs'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchJobs(); }, [filter]);
+  useEffect(() => {
+    setPage(1);
+    fetchJobs(1, filter);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  useEffect(() => {
+    // Skip the initial fetch — the filter effect handles page=1 on mount/filter change
+    if (page === 1) return;
+    fetchJobs(page, filter);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   return (
     <div className="space-y-6">
@@ -51,7 +69,7 @@ export default function JobsPage() {
           <h1 className="text-xl font-semibold text-gray-900">Print Jobs</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage and track all assigned print jobs</p>
         </div>
-        <button onClick={fetchJobs} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition">
+        <button onClick={() => fetchJobs(page, filter)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition">
           <RefreshCw className="h-3 w-3" /> Refresh
         </button>
       </div>
@@ -80,7 +98,7 @@ export default function JobsPage() {
             <AlertCircle className="h-4 w-4 text-red-600" />
             <p className="text-sm text-red-700">{error}</p>
           </div>
-          <button onClick={fetchJobs} className="flex items-center gap-1.5 text-xs font-medium text-red-700 hover:text-red-900 px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 transition-colors">
+          <button onClick={() => fetchJobs(page, filter)} className="flex items-center gap-1.5 text-xs font-medium text-red-700 hover:text-red-900 px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 transition-colors">
             <RefreshCw className="h-3 w-3" /> Retry
           </button>
         </div>
@@ -144,6 +162,61 @@ export default function JobsPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && !error && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+              .reduce<(number | '...')[]>((acc, n, i, arr) => {
+                if (i > 0 && (n as number) - (arr[i - 1] as number) > 1) acc.push('...');
+                acc.push(n);
+                return acc;
+              }, [])
+              .map((n, i) =>
+                n === '...' ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n as number)}
+                    className={`min-w-[32px] px-2.5 py-1.5 text-xs rounded-lg border transition ${
+                      page === n
+                        ? 'border-gray-900 bg-gray-900 text-white'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ),
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function JobsPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-sm text-gray-400">Loading...</div>}>
+      <JobsPageContent />
+    </Suspense>
   );
 }

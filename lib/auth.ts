@@ -30,6 +30,14 @@ export function clearSession() {
   Cookies.remove(VENDOR_KEY);
 }
 
+export function getRefreshToken(): string | undefined {
+  return Cookies.get(REFRESH_TOKEN_KEY);
+}
+
+export function saveAccessToken(accessToken: string) {
+  Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 });
+}
+
 export function isLoggedIn(): boolean {
   return !!Cookies.get(ACCESS_TOKEN_KEY);
 }

@@ -3,14 +3,27 @@
 import { useEffect, useState } from 'react';
 import { getCatalog, getFileUrl } from '@/lib/api';
 import type { PODCatalogItem } from '@/types';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+const LIMIT = 20;
 
 export default function CatalogPage() {
-  const [items, setItems]     = useState<PODCatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems]         = useState<PODCatalogItem[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [page, setPage]           = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    getCatalog().then(r => setItems(r.data)).finally(() => setLoading(false));
-  }, []);
+  const fetchCatalog = (p: number) => {
+    setLoading(true);
+    getCatalog({ page: p, limit: LIMIT })
+      .then(r => {
+        setItems(r.data);
+        setTotalPages(r.totalPages ?? 1);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchCatalog(page); }, [page]);
 
   return (
     <div className="space-y-6">
@@ -53,6 +66,53 @@ export default function CatalogPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+              .reduce<(number | '...')[]>((acc, n, i, arr) => {
+                if (i > 0 && (n as number) - (arr[i - 1] as number) > 1) acc.push('...');
+                acc.push(n);
+                return acc;
+              }, [])
+              .map((n, i) =>
+                n === '...' ? (
+                  <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n as number)}
+                    className={`min-w-[32px] px-2.5 py-1.5 text-xs rounded-lg border transition ${
+                      page === n
+                        ? 'border-gray-900 bg-gray-900 text-white'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ),
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
     </div>

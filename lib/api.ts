@@ -1,8 +1,11 @@
-import { getAccessToken } from './auth';
+import { getAccessToken, getRefreshToken, saveAccessToken, clearSession } from './auth';
 import type { AuthPayload, PaginatedResult, PODJob, PODCatalogItem } from '@/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL ?? '';
+
+// Prevents multiple simultaneous refresh attempts
+let isRefreshing = false;
 
 async function request<T>(
   path: string,
@@ -18,6 +21,54 @@ async function request<T>(
       ...options.headers,
     },
   });
+
+  // On 401, attempt to refresh the access token then retry
+  if (res.status === 401 && !isRefreshing) {
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      isRefreshing = true;
+      try {
+        const refreshRes = await fetch(`${BASE}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (refreshRes.ok) {
+          const refreshJson = await refreshRes.json();
+          const newAccessToken = (refreshJson.data ?? refreshJson).accessToken as string;
+          saveAccessToken(newAccessToken);
+          isRefreshing = false;
+
+          // Retry original request with new token
+          const retryRes = await fetch(`${BASE}${path}`, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${newAccessToken}`,
+              ...options.headers,
+            },
+          });
+          if (!retryRes.ok) {
+            const err = await retryRes.json().catch(() => ({ message: 'Request failed' }));
+            throw new Error(err.message ?? 'Request failed');
+          }
+          const retryJson = await retryRes.json();
+          return (retryJson.data ?? retryJson) as T;
+        }
+      } catch (e) {
+        // If the error is already a typed Error from above, rethrow it
+        if (e instanceof Error && e.message !== 'Request failed') throw e;
+      } finally {
+        isRefreshing = false;
+      }
+    }
+    // Refresh failed or no refresh token — clear session and redirect
+    clearSession();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    throw new Error('Session expired. Please log in again.');
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Request failed' }));
@@ -68,11 +119,26 @@ export function updateJobStatus(jobId: string, status: string, rejectReason?: st
   });
 }
 
-export function updateJobTracking(jobId: string, carrier: string, tracking: string) {
-  return request<PODJob>(`/pod/jobs/${jobId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status: 'SHIPPED', carrier, tracking }),
-  });
+export function shipJob(
+  jobId: string,
+  data: {
+    carrier?: string;
+    trackingNumber?: string;
+    trackingUrl?: string;
+    useShiprocket?: boolean;
+    weight?: number;
+    length?: number;
+    breadth?: number;
+    height?: number;
+  },
+) {
+  return request<{ shipment: Record<string, unknown>; shiprocket?: Record<string, unknown> }>(
+    `/pod/vendor-portal/jobs/${jobId}/ship`,
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+  );
 }
 
 // ── Catalog ───────────────────────────────────────────────────────────────
