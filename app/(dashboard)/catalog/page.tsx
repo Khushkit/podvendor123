@@ -82,7 +82,7 @@ export default function CatalogPage() {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* Pagination */}
       {!loading && !error && totalPages > 1 && (
