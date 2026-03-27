@@ -81,7 +81,7 @@ export default function JobDetailPage() {
     if (!useShiprocket && !trackingNumber.trim()) return;
     setUpdating(true);
     try {
-      const result = await shipJob(job.id, {
+      await shipJob(job.id, {
         ...(carrier.trim() && { carrier }),
         ...(trackingNumber.trim() && { trackingNumber }),
         ...(trackingUrl.trim() && { trackingUrl }),

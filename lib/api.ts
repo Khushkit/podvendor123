@@ -4,8 +4,34 @@ import type { AuthPayload, PaginatedResult, PODJob, PODCatalogItem } from '@/typ
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL ?? '';
 
-// Prevents multiple simultaneous refresh attempts
-let isRefreshing = false;
+// Shared refresh promise — all concurrent 401s await the same refresh attempt
+let refreshPromise: Promise<string> | null = null;
+
+function doRefresh(): Promise<string> {
+  if (refreshPromise) return refreshPromise;
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return Promise.reject(new Error('No refresh token'));
+  }
+  refreshPromise = fetch(`${BASE}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  })
+    .then(r => {
+      if (!r.ok) throw new Error('Refresh failed');
+      return r.json();
+    })
+    .then(json => {
+      const newToken = ((json.data ?? json).accessToken) as string;
+      saveAccessToken(newToken);
+      return newToken;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
 
 async function request<T>(
   path: string,
@@ -23,51 +49,33 @@ async function request<T>(
   });
 
   // On 401, attempt to refresh the access token then retry
-  if (res.status === 401 && !isRefreshing) {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      isRefreshing = true;
-      try {
-        const refreshRes = await fetch(`${BASE}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
-        if (refreshRes.ok) {
-          const refreshJson = await refreshRes.json();
-          const newAccessToken = (refreshJson.data ?? refreshJson).accessToken as string;
-          saveAccessToken(newAccessToken);
-          isRefreshing = false;
+  if (res.status === 401) {
+    try {
+      const newToken = await doRefresh();
 
-          // Retry original request with new token
-          const retryRes = await fetch(`${BASE}${path}`, {
-            ...options,
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${newAccessToken}`,
-              ...options.headers,
-            },
-          });
-          if (!retryRes.ok) {
-            const err = await retryRes.json().catch(() => ({ message: 'Request failed' }));
-            throw new Error(err.message ?? 'Request failed');
-          }
-          const retryJson = await retryRes.json();
-          return (retryJson.data ?? retryJson) as T;
-        }
-      } catch (e) {
-        // If the error is already a typed Error from above, rethrow it
-        if (e instanceof Error && e.message !== 'Request failed') throw e;
-      } finally {
-        isRefreshing = false;
+      // Retry original request with new token
+      const retryRes = await fetch(`${BASE}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${newToken}`,
+          ...options.headers,
+        },
+      });
+      if (!retryRes.ok) {
+        const err = await retryRes.json().catch(() => ({ message: 'Request failed' }));
+        throw new Error(err.message ?? 'Request failed');
       }
+      const retryJson = await retryRes.json();
+      return (retryJson.data ?? retryJson) as T;
+    } catch {
+      // Refresh failed — clear session and redirect
+      clearSession();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+      throw new Error('Session expired. Please log in again.');
     }
-    // Refresh failed or no refresh token — clear session and redirect
-    clearSession();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
-    }
-    throw new Error('Session expired. Please log in again.');
   }
 
   if (!res.ok) {
@@ -113,7 +121,7 @@ export function getJob(jobId: string) {
 }
 
 export function updateJobStatus(jobId: string, status: string, rejectReason?: string) {
-  return request<PODJob>(`/pod/jobs/${jobId}`, {
+  return request<PODJob>(`/pod/vendor-portal/jobs/${jobId}`, {
     method: 'PATCH',
     body: JSON.stringify({ status, ...(rejectReason && { rejectReason }) }),
   });
